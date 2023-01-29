@@ -67,14 +67,16 @@ def pfx_sign(args):
         top_level_certificate_found = False
         additional_certificates = []
         # Returns in reverse so that the first certificate is the issuer of the signer
-        for certificate in reversed(pkcs12_store.additional_certs):
+        for cert in reversed(pkcs12_store.additional_certs):
 
             if top_level_certificate:
-                if certificate.certificate.issuer == top_level_certificate.issuer:
+
+                if top_level_certificate.serial_number == cert.certificate.serial_number:
+                    logger.info("Found the top level certificate")
                     top_level_certificate_found = True
                     break
 
-            additional_certificates.append(certificate)
+            additional_certificates.append(cert)
 
         # if the top level certificate is provided and was not found
         if top_level_certificate and not top_level_certificate_found:
