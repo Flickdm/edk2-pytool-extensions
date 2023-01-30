@@ -19,12 +19,14 @@ import uuid
 import os
 import logging
 
+from cryptography.hazmat.primitives.serialization import pkcs12
+from cryptography import x509
+
 from edk2toollib.uefi.authenticated_variables_structure_support import \
     EfiVariableAuthentication2Builder, EfiVariableAuthentication2
 from edk2toollib.uefi.uefi_multi_phase import EfiVariableAttributes
 
-from cryptography.hazmat.primitives.serialization import pkcs12
-from cryptography import x509
+from edk2toollib.formatters.format import ExportCTypeArray
 
 logging.basicConfig()
 logger = logging.getLogger()
@@ -39,7 +41,7 @@ def pfx_sign(args):
     :return: 0 on success
     """
     # set the path for the output file
-    output_file = args.data_file + ".signed"
+    output_file = args.data_file + ".signed2"
 
     # Construct the EfiVariableAuthentication2 structure
     builder = EfiVariableAuthentication2Builder(args.name, args.guid, args.attributes)
@@ -100,7 +102,26 @@ def describe_variable(args):
     with open(args.signed_payload, 'rb') as f:
         authenticated_variable = EfiVariableAuthentication2(decodefs=f)
 
-        authenticated_variable.Print()
+        outputfs = sys.stdout
+
+        if args.output:
+            outputfs = open(args.output, 'wb')
+
+        authenticated_variable.Print(outputfs)
+
+        if args.output:
+            outputfs.close()
+
+    return 0
+
+
+def convert_bin(args):
+
+    with open(args.signed_payload, 'rb') as infs:
+        with open(args.output, 'w') as outfs:
+            ExportCTypeArray(infs, args.variable_name, outfs)
+
+    return 0
 
 
 def typecheck_file_exists(filepath):
@@ -198,11 +219,18 @@ def setup_signer(subparsers):
     )
 
     sign_parser.add_argument(
+        "--include-additional-certificates", default=False, action="store_true",
+        help="If included, this will include the additional certificates included in the pfx file"
+    )
+
+    sign_parser.add_argument(
         "--top-level-certificate", default=None, type=typecheck_file_exists,
-        help="If included, this is the top level certificate in the pfx (pkcs12) that the signer should chain up to"
+        help="If included, this is the top level certificate in the pfx file that the signer should chain up to;"
+        + " must be used in conjunction with --include-additional-certificates"
     )
 
     return subparsers
+
 
 def setup_describe(subparsers):
 
@@ -217,11 +245,36 @@ def setup_describe(subparsers):
     )
 
     describe_parser.add_argument(
-        "--output", default="./variable.describe",
+        "--output", default=None,
         help="Output file to write the parse data to"
     )
 
     return subparsers
+
+
+def setup_convert_bin(subparsers):
+
+    convert_parser = subparsers.add_parser(
+        "convert", help="converts a binary file to a C array"
+    )
+    convert_parser.set_defaults(function=convert_bin)
+
+    convert_parser.add_argument(
+        "signed_payload", type=typecheck_file_exists,
+        help="Signed payload to convert"
+    )
+
+    convert_parser.add_argument(
+        "variable_name", help="name of the variable"
+    )
+
+    convert_parser.add_argument(
+        "--output", default=None,
+        help="Output file to write the parse data to"
+    )
+
+    return subparsers
+
 
 def parse_args():
     """Parses arguments from the command line."""
@@ -235,6 +288,7 @@ def parse_args():
 
     subparsers = setup_signer(subparsers)
     subparsers = setup_describe(subparsers)
+    subparsers = setup_convert_bin(subparsers)
 
     args = parser.parse_args()
 
