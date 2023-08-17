@@ -488,6 +488,25 @@ def parse_dbx(args):
 
     return 0
 
+def parse_pk(args):
+    """Parses the PK.
+    
+    Args:
+        args (ArgumentParser.namespace): the namespace from the ArgumentParser
+
+    Returns:
+         0 on success
+    """
+
+    with open(args.pk_file, "rb") as pk_fs:
+        pk = EfiSignatureDatabase(pk_fs)
+        with open(args.output, "wb") as output_fs:
+            # write the first signature data to the output file
+            # The first signature data is the PK since the PK is a single signature
+            output_fs.write(pk.EslList[0].SignatureData_List[0].SignatureData)
+
+    return 0
+
 
 ###################################################################################################
 # Command Line Parsing Functions
@@ -604,6 +623,24 @@ def setup_get_secureboot_files(subparsers):
 
     return subparsers
 
+def setup_parse_pk(subparsers):
+    """Setup the parse_pk subparser."""
+
+    parser = subparsers.add_parser("parse_pk")
+    parser.set_defaults(function=parse_pk)
+
+    parser.add_argument(
+        "pk_file",
+        help="Input file to read the PK from",
+    )
+
+    parser.add_argument(
+        "--output",
+        help="Output file to write the PK contents to",
+        default=os.path.join(DEFAULT_OUTPUT_FOLDER, "PK.crt"),
+    )
+    return subparsers
+
 
 def parse_args():
     """Parses arguments from the command line."""
@@ -612,6 +649,7 @@ def parse_args():
     subparsers = setup_get_secureboot_files(subparsers)
     subparsers = setup_parse_uefi_org_files(subparsers)
     subparsers = setup_parse_dbx(subparsers)
+    subparsers = setup_parse_pk(subparsers)
 
     args = parser.parse_args()
 
